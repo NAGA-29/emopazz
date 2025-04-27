@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>エモパズ！</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="top-screen">
+      <canvas id="bg-effect-canvas"></canvas>
+      <h1 class="title">エモパズ！</h1>
+      <div class="camera-area">
+        <span class="camera-label">カメラ</span>
+        <div class="camera-frame">
+          <video id="camera" autoplay muted playsinline></video>
+        </div>
+      </div>
+      <button id="start-button" class="start-btn">スタート</button>
+      <button id="setting-button" class="setting-btn">せってい</button>
+    </div>
+
+    <div id="countdown" style="display: none">
+      <span id="countdown-number"></span>
+    </div>
+
+    <div id="game-container" style="display: none">
+      <div class="game-side left">
+        <div class="face-preview-frame">
+          <canvas id="face-preview" width="400" height="400"></canvas>
+        </div>
+        <div id="status" style="display: none"></div>
+      </div>
+      <div class="game-center">
+        <div class="game-header">
+          <span id="game-title">エモパズ！</span>
+          <span id="game-score">スコア: 0</span>
+        </div>
+        <canvas id="game-canvas" width="480" height="840"></canvas>
+      </div>
+      <div class="game-side right">
+        <div class="next-label">NEXT</div>
+        <div class="next-block-frame">
+          <canvas id="next-block" width="128" height="128"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div id="ranking-container" style="display:none;">
+      <h2 class="ranking-title">ランキング</h2>
+      <button id="back-to-title-small" class="small-title-btn">タイトルへ</button>
+      <div class="ranking-main">
+        <div class="ranking-photo-frame">
+          <img id="ranking-large-photo" src="" alt="顔写真" />
+          <button id="ranking-delete-btn" title="削除" class="delete-btn">🗑️</button>
+        </div>
+        <div id="ranking-list"></div>
+      </div>
+      <button id="back-to-title" class="start-btn">タイトルへ</button>
+    </div>
+
+    <!-- 設定モーダル -->
+    <div id="setting-modal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <h2>出現させるブロックの種類</h2>
+        <form id="block-types-form">
+          <label><input type="checkbox" name="block-type" value="😊" checked> 😊</label>
+          <label><input type="checkbox" name="block-type" value="😡" checked> 😡</label>
+          <label><input type="checkbox" name="block-type" value="😢" checked> 😢</label>
+          <label><input type="checkbox" name="block-type" value="😲" checked> 😲</label>
+        </form>
+        <button id="setting-ok" class="setting-ok-btn">OK</button>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.min.js"></script>
+    <script src="face-hand-detection.js"></script>
+    <script src="game.js"></script>
+  </body>
+</html>

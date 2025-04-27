@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>エモパズ！</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        text-align: center;
+        background: #eef;
+        margin: 0;
+      }
+      #top-screen {
+        padding: 20px;
+      }
+      video,
+      #face-preview {
+        width: 320px;
+        height: 240px;
+        margin-top: 1em;
+        border: 2px solid #333;
+        border-radius: 8px;
+      }
+      canvas {
+        background: #fff;
+        display: block;
+        margin: 1em auto;
+      }
+      #status {
+        font-weight: bold;
+        margin: 1em;
+        font-size: 1.2em;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="top-screen">
+      <h1>エモパズ！</h1>
+      <button id="start-button">ゲームスタート</button>
+      <video id="camera" autoplay muted playsinline></video>
+    </div>
+
+    <div id="status" style="display: none">認識中: ???</div>
+    <canvas
+      id="game-canvas"
+      width="240"
+      height="400"
+      style="display: none"
+    ></canvas>
+    <canvas
+      id="face-preview"
+      width="320"
+      height="240"
+      style="display: none"
+    ></canvas>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.min.js"></script>
+    <script>
+      const video = document.getElementById("camera");
+      const canvas = document.getElementById("game-canvas");
+      const ctx = canvas.getContext("2d");
+      const preview = document.getElementById("face-preview");
+      const previewCtx = preview.getContext("2d");
+      const startButton = document.getElementById("start-button");
+      const topScreen = document.getElementById("top-screen");
+      const statusText = document.getElementById("status");
+
+      let faceTiltDown = false;
+      let faceLean = "center";
+      let lastMoveTime = 0;
+      const moveDelay = 500;
+      let dropInterval = 1000;
+      let lastDropTime = 0;
+      let isFistPrev = false;
+
+      const blockSize = 20;
+      const boardWidth = 12;
+      const boardHeight = 20;
+      let board = Array.from({ length: boardHeight }, () =>
+        Array(boardWidth).fill(null)
+      );
+      let fallingPair = null;
+
+      function createPair() {
+        const x = Math.floor(boardWidth / 2);
+        return {
+          blocks: [
+            { x: x, y: 0, type: getRandomEmotion() },
+            { x: x, y: 1, type: getRandomEmotion() },
+          ],
+        };
+      }
+
+      function getRandomEmotion() {
+        const emojis = ["😊", "😡", "😢"];
+        return emojis[Math.floor(Math.random() * emojis.length)];
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let y = 0; y < boardHeight; y++) {
+          for (let x = 0; x < boardWidth; x++) {
+            if (board[y][x]) drawBlock(x, y, board[y][x]);
+          }
+        }
+        if (fallingPair)
+          for (const b of fallingPair.blocks) drawBlock(b.x, b.y, b.type);
+      }
+
+      function drawBlock(x, y, emoji) {
+        ctx.fillStyle = "#ddd";
+        ctx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+        ctx.strokeRect(x * blockSize, y * blockSize, blockSize, blockSize);
+        ctx.font = "16px serif";
+        ctx.fillStyle = "#000";
+        ctx.fillText(emoji, x * blockSize + 2, y * blockSize + 18);
+      }
+
+      function drop() {
+        if (!fallingPair) return;
+
+        if (
+          fallingPair.blocks.some(
+            (b) => b.y + 1 >= boardHeight || board[b.y + 1][b.x]
+          )
+        ) {
+          for (const b of fallingPair.blocks) {
+            if (b.y < 0) {
+              alert("ゲームオーバー！");
+              location.reload();
+              return;
+            }
+            board[b.y][b.x] = b.type;
+          }
+
+          // ★ここでマッチ探索＆削除！
+          let matches;
+          do {
+            matches = findMatches();
+            if (matches.length > 0) {
+              removeMatches(matches);
+              applyGravity();
+            }
+          } while (matches.length > 0);
+
+          fallingPair = createPair();
+          isFistPrev = false;
+        } else {
+          for (const b of fallingPair.blocks) b.y++;
+        }
+      }
+
+      function move(dir) {
+        const dx = dir === "left" ? -1 : 1;
+        if (
+          fallingPair &&
+          fallingPair.blocks.every(
+            (b) =>
+              b.x + dx >= 0 && b.x + dx < boardWidth && !board[b.y][b.x + dx]
+          )
+        ) {
+          for (const b of fallingPair.blocks) b.x += dx;
+        }
+      }
+
+      function rotate(direction = "right") {
+        if (!fallingPair) return;
+
+        const [a, b] = fallingPair.blocks;
+
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+
+        let newX, newY;
+        if (direction === "right") {
+          newX = a.x - dy;
+          newY = a.y + dx;
+        } else {
+          newX = a.x + dy;
+          newY = a.y - dx;
+        }
+
+        // ボード外 or 衝突チェック
+        if (
+          newX >= 0 &&
+          newX < boardWidth &&
+          newY >= 0 &&
+          newY < boardHeight &&
+          !board[newY][newX]
+        ) {
+          b.x = newX;
+          b.y = newY;
+        }
+      }
+
+      function updateDropSpeed() {
+        dropInterval = faceTiltDown ? 300 : 1000;
+      }
+
+      function gameLoop(timestamp) {
+        draw();
+        if (timestamp - lastMoveTime > moveDelay) {
+          if (faceLean === "left") move("right");
+          else if (faceLean === "right") move("left");
+          if (faceLean !== "center") lastMoveTime = timestamp;
+        }
+        if (timestamp - lastDropTime > dropInterval) {
+          drop();
+          lastDropTime = timestamp;
+        }
+        requestAnimationFrame(gameLoop);
+      }
+
+      function isFist(landmarks) {
+        const palm = landmarks[0];
+        const fingers = [8, 12, 16, 20];
+        let bentCount = 0;
+        fingers.forEach((i) => {
+          const dx = landmarks[i].x - palm.x;
+          const dy = landmarks[i].y - palm.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 0.12) bentCount++;
+        });
+        return bentCount >= 2;
+      }
+
+      function findMatches() {
+        const visited = Array.from({ length: boardHeight }, () =>
+          Array(boardWidth).fill(false)
+        );
+        const matches = [];
+
+        for (let y = 0; y < boardHeight; y++) {
+          for (let x = 0; x < boardWidth; x++) {
+            if (!board[y][x] || visited[y][x]) continue;
+
+            const queue = [[x, y]];
+            const group = [];
+            const type = board[y][x];
+
+            while (queue.length > 0) {
+              const [cx, cy] = queue.pop();
+              if (cx < 0 || cy < 0 || cx >= boardWidth || cy >= boardHeight)
+                continue;
+              if (visited[cy][cx] || board[cy][cx] !== type) continue;
+
+              visited[cy][cx] = true;
+              group.push([cx, cy]);
+
+              queue.push(
+                [cx + 1, cy],
+                [cx - 1, cy],
+                [cx, cy + 1],
+                [cx, cy - 1]
+              );
+            }
+
+            if (group.length >= 4) matches.push(...group);
+          }
+        }
+
+        return matches;
+      }
+
+      function removeMatches(matchList) {
+        matchList.forEach(([x, y]) => {
+          board[y][x] = null;
+        });
+      }
+
+      function applyGravity() {
+        for (let x = 0; x < boardWidth; x++) {
+          let empty = boardHeight - 1;
+          for (let y = boardHeight - 1; y >= 0; y--) {
+            if (board[y][x]) {
+              if (y !== empty) {
+                board[empty][x] = board[y][x];
+                board[y][x] = null;
+              }
+              empty--;
+            }
+          }
+        }
+      }
+
+      async function setupCameraAndStartGame() {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        video.srcObject = stream;
+
+        const faceMesh = new FaceMesh({
+          locateFile: (file) =>
+            `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+        });
+        faceMesh.setOptions({
+          maxNumFaces: 1,
+          refineLandmarks: true,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        });
+
+        const hands = new Hands({
+          locateFile: (file) =>
+            `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+        });
+        hands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        });
+
+        hands.onResults((results) => {
+          // ① 手の回転判定
+          if (
+            results.multiHandLandmarks &&
+            results.multiHandLandmarks.length > 0
+          ) {
+            const lm = results.multiHandLandmarks[0];
+            const isNowFist = isFist(lm);
+
+            if (isNowFist && !isFistPrev) {
+              rotate("right");
+            }
+            isFistPrev = isNowFist;
+          } else {
+            isFistPrev = false;
+          }
+
+          // ② 手のランドマーク＆ボーン描画（顔プレビューに重ねる）
+          previewCtx.save();
+          previewCtx.translate(preview.width, 0); // ミラー表示
+          previewCtx.scale(-1, 1);
+          previewCtx.drawImage(video, 0, 0, preview.width, preview.height);
+          previewCtx.restore();
+
+          if (results.multiHandLandmarks) {
+            for (const landmarks of results.multiHandLandmarks) {
+              drawConnectors(previewCtx, landmarks, HAND_CONNECTIONS, {
+                color: "#00FF00",
+                lineWidth: 2,
+              });
+              drawLandmarks(previewCtx, landmarks, {
+                color: "#FF0000",
+                lineWidth: 1,
+              });
+            }
+          }
+        });
+
+        faceMesh.onResults((results) => {
+          previewCtx.clearRect(0, 0, preview.width, preview.height);
+          previewCtx.save();
+          previewCtx.translate(preview.width, 0);
+          previewCtx.scale(-1, 1);
+          previewCtx.drawImage(video, 0, 0, preview.width, preview.height);
+          previewCtx.restore();
+
+          if (results.multiFaceLandmarks.length > 0) {
+            const lm = results.multiFaceLandmarks[0];
+            const leftCheekY = lm[234].y;
+            const rightCheekY = lm[454].y;
+            const tilt = rightCheekY - leftCheekY;
+
+            if (tilt > 0.03) faceLean = "right";
+            else if (tilt < -0.03) faceLean = "left";
+            else faceLean = "center";
+
+            const upperLip = lm[13];
+            const lowerLip = lm[14];
+            faceTiltDown = lowerLip.y - upperLip.y > 0.04;
+
+            updateDropSpeed();
+            statusText.textContent = `認識中: ${faceLean}${
+              faceTiltDown ? " + 口開け(早落下)" : ""
+            }`;
+          }
+        });
+
+        const camera = new Camera(video, {
+          onFrame: async () => {
+            await hands.send({ image: video });
+            await faceMesh.send({ image: video });
+          },
+          width: 320,
+          height: 240,
+        });
+
+        topScreen.style.display = "none";
+        canvas.style.display = "block";
+        statusText.style.display = "block";
+        preview.style.display = "block";
+        fallingPair = createPair();
+        let matches;
+        do {
+          matches = findMatches();
+          if (matches.length > 0) {
+            removeMatches(matches);
+            applyGravity();
+          }
+        } while (matches.length > 0);
+        camera.start();
+        requestAnimationFrame(gameLoop);
+      }
+
+      startButton.onclick = () => setupCameraAndStartGame();
+    </script>
+  </body>
+</html>
