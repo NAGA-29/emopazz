@@ -11,15 +11,23 @@
       <canvas id="bg-effect-canvas"></canvas>
       <h1 class="title">エモパズ！</h1>
       <div class="camera-area">
-        <span class="camera-label">カメラ</span>
         <div class="camera-frame">
           <video id="camera" autoplay muted playsinline></video>
+        </div>
+      </div>
+      <!-- 表情テスト用のエリアを追加 -->
+      <div class="emotion-test-area">
+        <span class="emotion-label">現在の表情：</span>
+        <span id="current-emotion-display" class="emotion-display">😊</span>
+        <div class="emotion-parameter">
+          <span id="emotion-parameters">表情パラメータ: カメラを許可すると表示されます</span>
         </div>
       </div>
       <button id="start-button" class="start-btn">スタート</button>
       <button id="setting-button" class="setting-btn">せってい</button>
     </div>
 
+    <!-- 以下は既存のコードと同じ -->
     <div id="countdown" style="display: none">
       <span id="countdown-number"></span>
     </div>
@@ -69,6 +77,31 @@
           <label><input type="checkbox" name="block-type" value="😢" checked> 😢</label>
           <label><input type="checkbox" name="block-type" value="😲" checked> 😲</label>
         </form>
+        
+        <h2>表情の出やすさ調整</h2>
+        <div class="sensitivity-settings">
+          <div class="sensitivity-item">
+            <label for="sensitivity-happy">😊 笑顔</label>
+            <input type="range" id="sensitivity-happy" name="sensitivity-happy" min="1" max="5" value="3" class="sensitivity-slider">
+            <span class="sensitivity-value">普通</span>
+          </div>
+          <div class="sensitivity-item">
+            <label for="sensitivity-angry">😡 怒り</label>
+            <input type="range" id="sensitivity-angry" name="sensitivity-angry" min="1" max="5" value="3" class="sensitivity-slider">
+            <span class="sensitivity-value">普通</span>
+          </div>
+          <div class="sensitivity-item">
+            <label for="sensitivity-sad">😢 悲しみ</label>
+            <input type="range" id="sensitivity-sad" name="sensitivity-sad" min="1" max="5" value="3" class="sensitivity-slider">
+            <span class="sensitivity-value">普通</span>
+          </div>
+          <div class="sensitivity-item">
+            <label for="sensitivity-surprise">😲 驚き</label>
+            <input type="range" id="sensitivity-surprise" name="sensitivity-surprise" min="1" max="5" value="3" class="sensitivity-slider">
+            <span class="sensitivity-value">普通</span>
+          </div>
+        </div>
+        
         <button id="setting-ok" class="setting-ok-btn">OK</button>
       </div>
     </div>
@@ -77,6 +110,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.min.js"></script>
+    <script src="emotion-detector.js"></script>
     <script src="face-hand-detection.js"></script>
     <script src="game.js"></script>
   </body>
