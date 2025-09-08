@@ -4,6 +4,7 @@
 
 import './compat/legacy-bridge.js';
 import { checkCompatibility } from './compat/legacy-bridge.js';
+import './compat/operation-bridge.js';
 
 /**
  * アプリケーションの初期化

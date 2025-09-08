@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作システムテスト - エモパズ！</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        .test-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .test-button:hover {
+            background: #45a049;
+        }
+        .test-button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #f44336;
+        }
+        .warning {
+            color: #ff9800;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 操作システムテスト</h1>
+        <p>新しい操作性改善システムの動作をテストします。</p>
+
+        <div class="test-section">
+            <h3>📊 システム状態</h3>
+            <div id="system-status" class="status">システム初期化中...</div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔄 回転操作テスト</h3>
+            <button class="test-button" onclick="testRotation('😲', 0.9)">驚き表情 (高信頼度)</button>
+            <button class="test-button" onclick="testRotation('😲', 0.5)">驚き表情 (低信頼度)</button>
+            <button class="test-button" onclick="testRotation('😊', 0.9)">笑顔 (回転しない)</button>
+            <div id="rotation-status" class="status">回転テスト待機中...</div>
+        </div>
+
+        <div class="test-section">
+            <h3>➡️ 移動操作テスト</h3>
+            <button class="test-button" onclick="testMovement(-0.1)">左に傾く</button>
+            <button class="test-button" onclick="testMovement(0.1)">右に傾く</button>
+            <button class="test-button" onclick="testMovement(0.05)">軽く傾く (移動しない)</button>
+            <button class="test-button" onclick="testMovement(0)">中央</button>
+            <div id="movement-status" class="status">移動テスト待機中...</div>
+        </div>
+
+        <div class="test-section">
+            <h3>📈 操作統計</h3>
+            <button class="test-button" onclick="showStatistics()">統計を表示</button>
+            <div id="statistics-status" class="status">統計表示待機中...</div>
+        </div>
+
+        <div class="test-section">
+            <h3>⚙️ 設定テスト</h3>
+            <button class="test-button" onclick="testSettings()">設定を変更</button>
+            <button class="test-button" onclick="resetSettings()">設定をリセット</button>
+            <div id="settings-status" class="status">設定テスト待機中...</div>
+        </div>
+
+        <!-- フィードバックシステム用のコンテナ -->
+        <div id="game-container">
+            <div style="text-align: center; padding-top: 130px; color: rgba(255,255,255,0.7);">
+                フィードバック表示エリア
+            </div>
+        </div>
+    </div>
+
+    <!-- TypeScriptコンパイル済みファイルを読み込み -->
+    <script type="module" src="./dist/main.js"></script>
+    
+    <script>
+        let operationManager = null;
+        let testCounter = 0;
+
+        // システム初期化を待つ
+        document.addEventListener('typescriptReady', function(event) {
+            console.log('TypeScript環境準備完了:', event.detail);
+            initializeTest();
+        });
+
+        function initializeTest() {
+            try {
+                // 操作管理システムが利用可能かチェック
+                if (window.OperationManager) {
+                    updateStatus('system-status', '✅ 操作システム初期化完了', 'success');
+                    
+                    // テスト用のコールバックを設定
+                    window.OperationManager.setGameCallbacks(
+                        () => {
+                            console.log('🔄 回転実行！');
+                            updateStatus('rotation-status', '🔄 回転が実行されました！', 'success');
+                        },
+                        (direction) => {
+                            console.log(`➡️ 移動実行: ${direction}`);
+                            updateStatus('movement-status', `➡️ ${direction}方向に移動しました！`, 'success');
+                        }
+                    );
+                } else {
+                    updateStatus('system-status', '❌ 操作システムが見つかりません', 'error');
+                }
+            } catch (error) {
+                updateStatus('system-status', `❌ 初期化エラー: ${error.message}`, 'error');
+            }
+        }
+
+        function testRotation(emotion, confidence) {
+            try {
+                if (!window.OperationManager) {
+                    updateStatus('rotation-status', '❌ 操作システムが利用できません', 'error');
+                    return;
+                }
+
+                const result = window.OperationManager.handleEmotionRotation(emotion, confidence);
+                
+                if (result) {
+                    updateStatus('rotation-status', `✅ 回転成功: ${emotion} (信頼度: ${confidence})`, 'success');
+                } else {
+                    updateStatus('rotation-status', `⏳ 回転失敗: ${emotion} (信頼度: ${confidence}) - クールダウン中または信頼度不足`, 'warning');
+                }
+            } catch (error) {
+                updateStatus('rotation-status', `❌ エラー: ${error.message}`, 'error');
+            }
+        }
+
+        function testMovement(tiltAngle) {
+            try {
+                if (!window.OperationManager) {
+                    updateStatus('movement-status', '❌ 操作システムが利用できません', 'error');
+                    return;
+                }
+
+                const result = window.OperationManager.handleHeadTiltMovement(tiltAngle);
+                
+                if (result && result !== 'center') {
+                    updateStatus('movement-status', `✅ 移動成功: ${result}方向 (角度: ${tiltAngle})`, 'success');
+                } else {
+                    updateStatus('movement-status', `⏳ 移動なし: 角度 ${tiltAngle} - 安定性不足または中央位置`, 'warning');
+                }
+            } catch (error) {
+                updateStatus('movement-status', `❌ エラー: ${error.message}`, 'error');
+            }
+        }
+
+        function showStatistics() {
+            try {
+                if (!window.OperationManager) {
+                    updateStatus('statistics-status', '❌ 操作システムが利用できません', 'error');
+                    return;
+                }
+
+                const stats = window.OperationManager.getStatistics();
+                
+                if (stats) {
+                    const statsText = `
+📊 操作統計:
+- 回転成功率: ${(stats.successRates.rotation * 100).toFixed(1)}%
+- 移動成功率: ${(stats.successRates.movement * 100).toFixed(1)}%
+- クールダウン時間: ${stats.currentSettings.rotationCooldown}ms
+- 安定性要件: ${stats.currentSettings.stabilityRequired}
+                    `;
+                    updateStatus('statistics-status', statsText, 'success');
+                } else {
+                    updateStatus('statistics-status', '⚠️ 統計データがありません', 'warning');
+                }
+            } catch (error) {
+                updateStatus('statistics-status', `❌ エラー: ${error.message}`, 'error');
+            }
+        }
+
+        function testSettings() {
+            try {
+                // 設定を変更してテスト
+                const newCooldown = 1200;
+                const newStability = 4;
+                
+                // 設定変更のシミュレーション
+                updateStatus('settings-status', `⚙️ 設定変更: クールダウン=${newCooldown}ms, 安定性=${newStability}`, 'success');
+            } catch (error) {
+                updateStatus('settings-status', `❌ エラー: ${error.message}`, 'error');
+            }
+        }
+
+        function resetSettings() {
+            try {
+                updateStatus('settings-status', '🔄 設定をデフォルトにリセットしました', 'success');
+            } catch (error) {
+                updateStatus('settings-status', `❌ エラー: ${error.message}`, 'error');
+            }
+        }
+
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = message;
+                element.className = `status ${type}`;
+            }
+        }
+
+        // 初期化が遅れる場合のフォールバック
+        setTimeout(() => {
+            if (!operationManager) {
+                initializeTest();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
