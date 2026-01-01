@@ -20,19 +20,31 @@ let nextPair = null;
 
 let currentRankingIdx = 0; // 現在選択中のランキングインデックス
 
-let enabledEmojis = ["😊", "😡", "😢", "😲"];
+let enabledEmojis = ["😊", "😡", "😢", "😲"]; // 怒りの絵文字を復活
 
 // SVG画像の読み込み
 const faceImages = {
   "😊": new Image(),
   "😡": new Image(),
   "😢": new Image(),
-  "😲": new Image()
+  "😲": new Image(),
+  "❓": new Image()  // 「?ブロック」用の画像を追加
 };
 faceImages["😊"].src = "assets/reshot-icon-happy-laugh-72WQS35RC4.svg";
 faceImages["😡"].src = "assets/reshot-icon-angry-89V6AQK7MW.svg";
 faceImages["😢"].src = "assets/reshot-icon-sad-C2S8PFHBXL.svg";
 faceImages["😲"].src = "assets/reshot-icon-shocked-UBGW9ZYCX8.svg";
+
+// 「?ブロック」用のSVGコンテンツを直接生成
+const questionSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="45" fill="#e0e0e0" stroke="#333" stroke-width="2"/>
+  <text x="50" y="70" font-size="70" text-anchor="middle" fill="#333" font-weight="bold">?</text>
+</svg>
+`;
+const svgBlob = new Blob([questionSvg], {type: 'image/svg+xml'});
+const svgUrl = URL.createObjectURL(svgBlob);
+faceImages["❓"].src = svgUrl;
 
 // トップページ背景エフェクト
 const bgEmojis = ["😊", "😡", "😢", "😲"];
@@ -83,16 +95,37 @@ bgEffectLoop();
 
 function createPair() {
   const x = Math.floor(boardWidth / 2);
-  return {
-    blocks: [
-      { x: x, y: 0, type: getRandomEmotion() },
-      { x: x, y: 1, type: getRandomEmotion() },
-    ],
-  };
+  // 50%の確率で横向きのペアを生成
+  const isHorizontal = Math.random() < 0.5;
+  
+  if (isHorizontal) {
+    // 横向きのブロック配置（左右）- 画面からはみ出さないように調整
+    const safeX = Math.min(Math.max(1, x), boardWidth - 2);
+    return {
+      blocks: [
+        { x: safeX, y: 0, type: getRandomEmotion() },
+        { x: safeX + 1, y: 0, type: getRandomEmotion() },
+      ],
+    };
+  } else {
+    // 縦向きのブロック配置（上下）- 従来通り
+    return {
+      blocks: [
+        { x: x, y: 0, type: getRandomEmotion() },
+        { x: x, y: 1, type: getRandomEmotion() },
+      ],
+    };
+  }
 }
 
 function getRandomEmotion() {
   if (enabledEmojis.length === 0) enabledEmojis = ["😊", "😡", "😢", "😲"];
+  
+  // 25%の確率で「?ブロック」を生成
+  if (Math.random() < 0.25) {
+    return "❓";
+  }
+  
   return enabledEmojis[Math.floor(Math.random() * enabledEmojis.length)];
 }
 
@@ -123,7 +156,13 @@ function drawBlock(x, y, cell) {
     cell = { type: cell };
   }
   let alpha = 1;
+  
+  // 表示するemoji: 「?ブロック」で表示タイプがある場合はそれを使う
   let emoji = cell.type;
+  if (cell.displayType && cell.type === "❓") {
+    emoji = cell.displayType;
+  }
+  
   if (cell && cell.erasing) {
     alpha = 1 - cell.eraseTimer / 10;
   }
@@ -151,6 +190,7 @@ function drawBlock(x, y, cell) {
   ctx.strokeStyle = "#333";
   ctx.lineWidth = 2;
   ctx.stroke();
+  
   // SVG画像を描画
   const img = faceImages[emoji];
   if (img && img.complete) {
@@ -257,7 +297,7 @@ function drawNextBlock() {
         nextBlockCtx.font = "32px serif"; // フォントサイズ拡大
         nextBlockCtx.fillStyle = "#000";
         nextBlockCtx.textAlign = "center";
-        nextBlockCtx.textBaseline = "middle";
+        ctx.textBaseline = "middle";
         nextBlockCtx.fillText(
           emoji, 
           startX + blockSize / 2, 
@@ -403,7 +443,15 @@ async function drop() {
       gameOver();
       return;
     }
-    board[b.y][b.x] = { type: b.type, justPlaced: true };
+    
+    // 「?ブロック」の場合は、現在の表情に変換して固定
+    if (b.type === "❓" && window.getCurrentEmotion) {
+      // 表情を取得して固定
+      const currentEmotion = window.getCurrentEmotion();
+      board[b.y][b.x] = { type: currentEmotion, justPlaced: true };
+    } else {
+      board[b.y][b.x] = { type: b.type, justPlaced: true };
+    }
   }
   
   // fallingPairは空にしておく - 消去ロジックがboardのみを対象とするため
@@ -445,21 +493,30 @@ function move(dir) {
 window.rotate = function(direction = "right") {
   if (!fallingPair || fallingPair.blocks.length < 2) return;
 
+  // 回転はブロックが2つ揃っていることを前提にしている
   const [a, b] = fallingPair.blocks;
+  
+  // 両方のブロックが存在することを確認
   if (!a || !b) return;
 
+  // 基準ブロックを中心とした相対位置を計算
   const dx = b.x - a.x;
   const dy = b.y - a.y;
 
   let newX, newY;
-  if (direction === "right") {
-    newX = a.x - dy;
-    newY = a.y + dx;
-  } else {
+  
+  // 回転方向に応じた新しい相対位置を計算
+  // 時計回りの場合: (x, y) -> (y, -x)
+  // 反時計回りの場合: (x, y) -> (-y, x)
+  if (direction === "right") { // 時計回り
     newX = a.x + dy;
     newY = a.y - dx;
+  } else { // 反時計回り
+    newX = a.x - dy;
+    newY = a.y + dx;
   }
 
+  // 回転後の位置が有効かチェック
   if (
     newX >= 0 &&
     newX < boardWidth &&
@@ -467,16 +524,55 @@ window.rotate = function(direction = "right") {
     newY < boardHeight &&
     !board[newY][newX]
   ) {
+    // 回転可能な場合は位置を更新
     b.x = newX;
     b.y = newY;
+  } else {
+    // 回転できない場合は壁キック処理を試みる
+    // 基準点からの位置をずらして回転を試みる
+    const kicks = [
+      {dx: -1, dy: 0}, // 左へ1マス
+      {dx: 1, dy: 0},  // 右へ1マス
+      {dx: 0, dy: -1}, // 上へ1マス
+      {dx: 0, dy: 1}   // 下へ1マス
+    ];
+    
+    for (const kick of kicks) {
+      const kickedX = newX + kick.dx;
+      const kickedY = newY + kick.dy;
+      
+      if (
+        kickedX >= 0 &&
+        kickedX < boardWidth &&
+        kickedY >= 0 &&
+        kickedY < boardHeight &&
+        !board[kickedY][kickedX]
+      ) {
+        // 壁キックで回転可能な位置が見つかった
+        b.x = kickedX;
+        b.y = kickedY;
+        break;
+      }
+    }
   }
 };
 
 window.updateDropSpeed = function(isFast) {
-  dropInterval = isFast ? 300 : 1000;
+  // dropInterval = isFast ? 300 : 1000;
 };
 
 async function gameLoop(timestamp) {
+  // 落下中の「?ブロック」を現在の表情で更新
+  if (fallingPair && window.getCurrentEmotion) {
+    const currentEmotion = window.getCurrentEmotion();
+    fallingPair.blocks.forEach(block => {
+      if (block && block.type === "❓") {
+        // 落下中は「?ブロック」を表情で置き換える（一時的に）
+        block.displayType = currentEmotion;
+      }
+    });
+  }
+
   draw();
   if (timestamp - lastMoveTime > moveDelay) {
     if (faceLean === "left") move("right");
@@ -675,9 +771,56 @@ const settingModal = document.getElementById("setting-modal");
 const settingOkBtn = document.getElementById("setting-ok");
 const blockTypesForm = document.getElementById("block-types-form");
 
+// 感度設定スライダー
+const sensitivitySliders = {
+  "😊": document.getElementById("sensitivity-happy"),
+  "😡": document.getElementById("sensitivity-angry"), 
+  "😢": document.getElementById("sensitivity-sad"),
+  "😲": document.getElementById("sensitivity-surprise")
+};
+
+const sensitivityLabels = {
+  1: "とても低い",
+  2: "低い",
+  3: "普通",
+  4: "高い",
+  5: "とても高い"
+};
+
+// 初期値を設定
+function initSensitivitySliders() {
+  if (window.EmotionDetector && window.EmotionDetector.sensitivitySettings) {
+    Object.entries(window.EmotionDetector.sensitivitySettings).forEach(([emotion, level]) => {
+      const slider = sensitivitySliders[emotion];
+      if (slider) {
+        slider.value = level;
+        updateSensitivityLabel(slider);
+      }
+    });
+  }
+}
+
+// 感度ラベルを更新する関数
+function updateSensitivityLabel(slider) {
+  const value = parseInt(slider.value);
+  const valueText = sensitivityLabels[value] || "普通";
+  slider.nextElementSibling.textContent = valueText;
+}
+
+// 感度スライダーのイベントリスナー設定
+Object.values(sensitivitySliders).forEach(slider => {
+  if (slider) {
+    slider.addEventListener('input', function() {
+      updateSensitivityLabel(this);
+    });
+  }
+});
+
 settingBtn.onclick = () => {
   settingModal.style.display = "flex";
+  initSensitivitySliders(); // スライダー初期値設定
 };
+
 settingOkBtn.onclick = () => {
   const checked = Array.from(blockTypesForm.querySelectorAll('input[type=checkbox]:checked'));
   enabledEmojis = checked.map(cb => cb.value);
@@ -685,8 +828,19 @@ settingOkBtn.onclick = () => {
     alert("最低1つは選択してください");
     return;
   }
+  
+  // 感度設定を保存
+  if (window.EmotionDetector) {
+    window.EmotionDetector.updateSensitivity("😊", parseInt(sensitivitySliders["😊"].value));
+    window.EmotionDetector.updateSensitivity("😡", parseInt(sensitivitySliders["😡"].value));
+    window.EmotionDetector.updateSensitivity("😢", parseInt(sensitivitySliders["😢"].value));
+    window.EmotionDetector.updateSensitivity("😲", parseInt(sensitivitySliders["😲"].value));
+    window.EmotionDetector.saveSensitivitySettings();
+  }
+  
   settingModal.style.display = "none";
 };
+
 // モーダル外クリックで閉じる
 settingModal.onclick = (e) => {
   if (e.target === settingModal) settingModal.style.display = "none";

@@ -453,3 +453,61 @@ body {
 .small-title-btn:hover {
   background: #ffa726;
 }
+
+/* 表情感度設定スライダーのスタイル */
+.sensitivity-settings {
+  margin: 20px 0;
+}
+
+.sensitivity-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.sensitivity-item label {
+  font-size: 24px;
+  min-width: 80px;
+  text-align: left;
+}
+
+.sensitivity-slider {
+  flex-grow: 1;
+  margin: 0 10px;
+  height: 10px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e0e0e0;
+  border-radius: 5px;
+  outline: none;
+}
+
+.sensitivity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #42a5f5;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.sensitivity-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #42a5f5;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.sensitivity-value {
+  font-size: 14px;
+  min-width: 50px;
+  text-align: center;
+  color: #555;
+  font-weight: bold;
+}
