@@ -11,10 +11,10 @@ class Logger {
   constructor() {
     // 開発環境の判定（ブラウザ環境を想定）
     this.isDevelopment =
-      (typeof window !== 'undefined' &&
-       (window.location?.hostname === 'localhost' ||
-        window.location?.hostname === '127.0.0.1' ||
-        window.location?.hostname === ''));
+      typeof window !== 'undefined' &&
+      (window.location?.hostname === 'localhost' ||
+       window.location?.hostname === '127.0.0.1' ||
+       window.location?.hostname === '');
   }
 
   private log(level: LogLevel, message: string, ...args: unknown[]): void {
