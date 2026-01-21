@@ -11,6 +11,7 @@ import {
   SensitivitySettings,
 } from '../../types/emotion.js';
 import { Landmark } from '../../types/mediapipe.js';
+import { logger } from '../../utils/logger.js';
 
 export class EmotionDetector {
   private static instance: EmotionDetector;
@@ -21,6 +22,7 @@ export class EmotionDetector {
     '😡': 3, // 怒り
     '😢': 3, // 悲しみ
     '😲': 3, // 驚き
+    '❓': 3, // ?ブロック
   };
 
   // 感度によるスコア倍率調整テーブル
@@ -97,15 +99,15 @@ export class EmotionDetector {
         const settings = JSON.parse(saved) as SensitivitySettings;
         for (const [emotion, level] of Object.entries(settings)) {
           if (
-            this._sensitivitySettings.hasOwnProperty(emotion) &&
+            Object.hasOwn(this._sensitivitySettings, emotion) &&
             level >= 1 &&
             level <= 5
           ) {
-            this._sensitivitySettings[emotion] = level;
+            this._sensitivitySettings[emotion as EmotionType] = level;
           }
         }
       } catch (e) {
-        console.error('感度設定の読み込みに失敗しました', e);
+        logger.error('感度設定の読み込みに失敗しました', e);
       }
     }
   }
@@ -120,8 +122,19 @@ export class EmotionDetector {
         JSON.stringify(this._sensitivitySettings)
       );
     } catch (e) {
-      console.error('感度設定の保存に失敗しました', e);
+      logger.error('感度設定の保存に失敗しました', e);
     }
+  }
+
+  /**
+   * ランドマークを安全に取得するヘルパーメソッド
+   */
+  private getLandmark(landmarks: Landmark[], index: number): Landmark {
+    const landmark = landmarks[index];
+    if (!landmark) {
+      throw new Error(`ランドマークインデックス ${index} が存在しません`);
+    }
+    return landmark;
   }
 
   /**
@@ -134,15 +147,15 @@ export class EmotionDetector {
     }
 
     // 口の開き具合
-    const upperLip = landmarks[13]!;
-    const lowerLip = landmarks[14]!;
+    const upperLip = this.getLandmark(landmarks, 13);
+    const lowerLip = this.getLandmark(landmarks, 14);
     const mouthOpenness = lowerLip.y - upperLip.y;
 
     // 眉毛の位置
-    const leftEyebrowInnerY = landmarks[336]!.y;
-    const leftEyebrowOuterY = landmarks[296]!.y;
-    const rightEyebrowInnerY = landmarks[107]!.y;
-    const rightEyebrowOuterY = landmarks[67]!.y;
+    const leftEyebrowInnerY = this.getLandmark(landmarks, 336).y;
+    const leftEyebrowOuterY = this.getLandmark(landmarks, 296).y;
+    const rightEyebrowInnerY = this.getLandmark(landmarks, 107).y;
+    const rightEyebrowOuterY = this.getLandmark(landmarks, 67).y;
     const eyebrowY =
       (leftEyebrowInnerY + leftEyebrowOuterY + rightEyebrowInnerY + rightEyebrowOuterY) / 4;
 
@@ -152,32 +165,32 @@ export class EmotionDetector {
     const eyebrowAngle = (leftEyebrowAngle + rightEyebrowAngle) / 2;
 
     // 目の開き具合
-    const leftEyeUpperY = landmarks[159]!.y;
-    const leftEyeLowerY = landmarks[145]!.y;
-    const rightEyeUpperY = landmarks[386]!.y;
-    const rightEyeLowerY = landmarks[374]!.y;
+    const leftEyeUpperY = this.getLandmark(landmarks, 159).y;
+    const leftEyeLowerY = this.getLandmark(landmarks, 145).y;
+    const rightEyeUpperY = this.getLandmark(landmarks, 386).y;
+    const rightEyeLowerY = this.getLandmark(landmarks, 374).y;
     const leftEyeOpenness = leftEyeLowerY - leftEyeUpperY;
     const rightEyeOpenness = rightEyeLowerY - rightEyeUpperY;
     const eyeOpenness = (leftEyeOpenness + rightEyeOpenness) / 2;
 
     // 口の横幅
-    const mouthLeftX = landmarks[61]!.x;
-    const mouthRightX = landmarks[291]!.x;
+    const mouthLeftX = this.getLandmark(landmarks, 61).x;
+    const mouthRightX = this.getLandmark(landmarks, 291).x;
     const mouthWidth = mouthRightX - mouthLeftX;
 
     // 口の形状
-    const mouthLeftY = landmarks[61]!.y;
-    const mouthRightY = landmarks[291]!.y;
-    const mouthTopY = landmarks[0]!.y;
-    const mouthBottomY = landmarks[17]!.y;
+    const mouthLeftY = this.getLandmark(landmarks, 61).y;
+    const mouthRightY = this.getLandmark(landmarks, 291).y;
+    const mouthTopY = this.getLandmark(landmarks, 0).y;
+    const mouthBottomY = this.getLandmark(landmarks, 17).y;
     const mouthCurvature =
       (mouthLeftY + mouthRightY) / 2 - (mouthTopY + mouthBottomY) / 2;
 
     // 口角の位置の計算
-    const mouthCornerLeft = landmarks[61]!;
-    const mouthCornerRight = landmarks[291]!;
-    const mouthTopPoint = landmarks[13]!;
-    const mouthBottomPoint = landmarks[14]!;
+    const mouthCornerLeft = this.getLandmark(landmarks, 61);
+    const mouthCornerRight = this.getLandmark(landmarks, 291);
+    const mouthTopPoint = this.getLandmark(landmarks, 13);
+    const mouthBottomPoint = this.getLandmark(landmarks, 14);
 
     // 口の中心を計算
     const mouthCenter = {
@@ -193,8 +206,8 @@ export class EmotionDetector {
       ((leftCornerLift + rightCornerLift) / 2) * 0.3;
 
     // 眉間の距離
-    const leftEyebrowInner = landmarks[336]!;
-    const rightEyebrowInner = landmarks[107]!;
+    const leftEyebrowInner = this.getLandmark(landmarks, 336);
+    const rightEyebrowInner = this.getLandmark(landmarks, 107);
     const eyebrowDistance = Math.abs(rightEyebrowInner.x - leftEyebrowInner.x);
 
     return {
@@ -333,9 +346,10 @@ export class EmotionDetector {
 
     // 感度設定に基づいてスコアを調整
     for (const [emotion, score] of Object.entries(emotionScores)) {
-      const multiplier =
-        this.sensitivityMultipliers[this._sensitivitySettings[emotion] || 3] || 1.0;
-      emotionScores[emotion as EmotionType] = score * multiplier;
+      const emotionType = emotion as EmotionType;
+      const sensitivity = this._sensitivitySettings[emotionType] ?? 3;
+      const multiplier = this.sensitivityMultipliers[sensitivity] ?? 1.0;
+      emotionScores[emotionType] = score * multiplier;
     }
 
     return emotionScores;
@@ -447,14 +461,18 @@ export class EmotionDetector {
         ctx.strokeStyle = '#FF6666';
         ctx.lineWidth = 2;
         // 左眉
+        const leftInner = this.getLandmark(landmarks, 336);
+        const leftOuter = this.getLandmark(landmarks, 296);
         ctx.beginPath();
-        ctx.moveTo(landmarks[336]!.x * width, landmarks[336]!.y * height);
-        ctx.lineTo(landmarks[296]!.x * width, landmarks[296]!.y * height);
+        ctx.moveTo(leftInner.x * width, leftInner.y * height);
+        ctx.lineTo(leftOuter.x * width, leftOuter.y * height);
         ctx.stroke();
         // 右眉
+        const rightInner = this.getLandmark(landmarks, 107);
+        const rightOuter = this.getLandmark(landmarks, 67);
         ctx.beginPath();
-        ctx.moveTo(landmarks[107]!.x * width, landmarks[107]!.y * height);
-        ctx.lineTo(landmarks[67]!.x * width, landmarks[67]!.y * height);
+        ctx.moveTo(rightInner.x * width, rightInner.y * height);
+        ctx.lineTo(rightOuter.x * width, rightOuter.y * height);
         ctx.stroke();
       }
     }
@@ -463,13 +481,17 @@ export class EmotionDetector {
     if ((scores['😢'] ?? 0) >= this._thresholds.minDetectionScore) {
       ctx.strokeStyle = '#6666FF';
       ctx.lineWidth = 2;
+      const sadLeftInner = this.getLandmark(landmarks, 336);
+      const sadLeftOuter = this.getLandmark(landmarks, 296);
+      const sadRightInner = this.getLandmark(landmarks, 107);
+      const sadRightOuter = this.getLandmark(landmarks, 67);
       ctx.beginPath();
-      ctx.moveTo(landmarks[336]!.x * width, landmarks[336]!.y * height);
-      ctx.lineTo(landmarks[296]!.x * width, landmarks[296]!.y * height);
+      ctx.moveTo(sadLeftInner.x * width, sadLeftInner.y * height);
+      ctx.lineTo(sadLeftOuter.x * width, sadLeftOuter.y * height);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(landmarks[107]!.x * width, landmarks[107]!.y * height);
-      ctx.lineTo(landmarks[67]!.x * width, landmarks[67]!.y * height);
+      ctx.moveTo(sadRightInner.x * width, sadRightInner.y * height);
+      ctx.lineTo(sadRightOuter.x * width, sadRightOuter.y * height);
       ctx.stroke();
     }
 
@@ -477,13 +499,17 @@ export class EmotionDetector {
     if ((scores['😲'] ?? 0) >= this._thresholds.minDetectionScore) {
       ctx.strokeStyle = '#FF66FF';
       ctx.lineWidth = 2;
+      const leftEyeUpper = this.getLandmark(landmarks, 159);
+      const leftEyeLower = this.getLandmark(landmarks, 145);
+      const rightEyeUpper = this.getLandmark(landmarks, 386);
+      const rightEyeLower = this.getLandmark(landmarks, 374);
       ctx.beginPath();
-      ctx.moveTo(landmarks[159]!.x * width, landmarks[159]!.y * height);
-      ctx.lineTo(landmarks[145]!.x * width, landmarks[145]!.y * height);
+      ctx.moveTo(leftEyeUpper.x * width, leftEyeUpper.y * height);
+      ctx.lineTo(leftEyeLower.x * width, leftEyeLower.y * height);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(landmarks[386]!.x * width, landmarks[386]!.y * height);
-      ctx.lineTo(landmarks[374]!.x * width, landmarks[374]!.y * height);
+      ctx.moveTo(rightEyeUpper.x * width, rightEyeUpper.y * height);
+      ctx.lineTo(rightEyeLower.x * width, rightEyeLower.y * height);
       ctx.stroke();
     }
 

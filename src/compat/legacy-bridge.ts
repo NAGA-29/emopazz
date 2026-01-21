@@ -6,6 +6,7 @@
 import { EmotionDetector } from '../core/emotion/EmotionDetector.js';
 import { EmotionType } from '../types/emotion.js';
 import { Landmark } from '../types/mediapipe.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * グローバルなEmotionDetectorインスタンス
@@ -88,13 +89,9 @@ window.EmotionDetector = {
  * TypeScript環境の初期化
  */
 export function initializeTypeScriptEnvironment(): void {
-  console.log('🚀 TypeScript環境が初期化されました');
-  console.log('📊 EmotionDetector (TypeScript版) が利用可能です');
-
-  // 開発モードでの追加情報
-  if (process.env['NODE_ENV'] === 'development') {
-    console.log('🔧 開発モード: 詳細なログが有効です');
-  }
+  logger.info('🚀 TypeScript環境が初期化されました');
+  logger.info('📊 EmotionDetector (TypeScript版) が利用可能です');
+  logger.debug('🔧 開発モード: 詳細なログが有効です');
 }
 
 /**

@@ -4,6 +4,7 @@
  */
 
 import { EmotionType, MovementDirection, SkillLevel } from '../../types/game.js';
+import { logger } from '../../utils/logger.js';
 
 // Re-export types for other modules
 export type { MovementDirection, SkillLevel } from '../../types/game.js';
@@ -45,28 +46,37 @@ export type OperationStatus =
  * スマート操作制御システムのメインクラス
  */
 export class SmartControlSystem {
-  private rotationCooldown: number = 800; // ミリ秒
+  // デフォルト設定値の定数
+  private static readonly DEFAULT_ROTATION_COOLDOWN = 800; // ミリ秒
+  private static readonly DEFAULT_STABILITY_THRESHOLD = 3; // 連続フレーム数
+  private static readonly DEFAULT_BUFFER_TIMEOUT = 500; // ミリ秒
+  private static readonly MAX_HISTORY_SIZE = 100; // 履歴の最大サイズ
+  private static readonly DEFAULT_SUCCESS_RATE = 0.8; // 初期成功率
+  private static readonly DEFAULT_MOVEMENT_SENSITIVITY = 1.0; // 移動感度
+  private static readonly DEFAULT_INTENTION_CONFIDENCE = 0.8; // 意図信頼度
+
+  private rotationCooldown: number = SmartControlSystem.DEFAULT_ROTATION_COOLDOWN;
   private lastRotationTime: number = 0;
-  
+
   // 移動操作の制御
   private movementBuffer: MovementState[] = [];
-  private movementStabilityThreshold: number = 3; // 連続3フレーム同じ方向
-  private movementBufferTimeout: number = 500; // ミリ秒
-  
+  private movementStabilityThreshold: number = SmartControlSystem.DEFAULT_STABILITY_THRESHOLD;
+  private movementBufferTimeout: number = SmartControlSystem.DEFAULT_BUFFER_TIMEOUT;
+
   // 個人適応システム
   private operationHistory: OperationHistory[] = [];
-  private maxHistorySize: number = 100;
-  
+  private maxHistorySize: number = SmartControlSystem.MAX_HISTORY_SIZE;
+
   // 操作成功率の追跡
-  private rotationSuccessRate: number = 0.8;
-  private movementSuccessRate: number = 0.8;
-  
+  private rotationSuccessRate: number = SmartControlSystem.DEFAULT_SUCCESS_RATE;
+  private movementSuccessRate: number = SmartControlSystem.DEFAULT_SUCCESS_RATE;
+
   // 設定可能なパラメータ
   private config: OperationControl = {
-    rotationCooldown: 800,
-    movementSensitivity: 1.0,
-    stabilityRequired: 3,
-    intentionConfidence: 0.8
+    rotationCooldown: SmartControlSystem.DEFAULT_ROTATION_COOLDOWN,
+    movementSensitivity: SmartControlSystem.DEFAULT_MOVEMENT_SENSITIVITY,
+    stabilityRequired: SmartControlSystem.DEFAULT_STABILITY_THRESHOLD,
+    intentionConfidence: SmartControlSystem.DEFAULT_INTENTION_CONFIDENCE
   };
 
   constructor(initialConfig?: Partial<OperationControl>) {
@@ -313,7 +323,7 @@ export class SmartControlSystem {
         this.updateConfig(settings);
       }
     } catch (error) {
-      console.error('個人設定の読み込みに失敗しました:', error);
+      logger.error('個人設定の読み込みに失敗しました:', error);
     }
   }
 
@@ -324,7 +334,7 @@ export class SmartControlSystem {
     try {
       localStorage.setItem('emopazz_operation_settings', JSON.stringify(this.config));
     } catch (error) {
-      
+      logger.error('操作設定の保存に失敗しました:', error);
     }
   }
 
@@ -357,30 +367,54 @@ export class SmartControlSystem {
   /**
    * 移動バッファの現在の状態を取得
    */
-  public getMovementBufferStatus(): { 
-    bufferSize: number; 
-    dominantDirection: MovementDirection; 
-    stability: number 
+  public getMovementBufferStatus(): {
+    bufferSize: number;
+    dominantDirection: MovementDirection;
+    stability: number
   } {
     const recentMovements = this.movementBuffer.slice(-this.config.stabilityRequired);
-    
+
     // 最も多い方向を計算
     const directionCounts = recentMovements.reduce((acc, movement) => {
       acc[movement.direction] = (acc[movement.direction] || 0) + 1;
       return acc;
     }, {} as Record<MovementDirection, number>);
-    
-    const dominantDirection = Object.entries(directionCounts)
-      .reduce((a, b) => directionCounts[a[0] as MovementDirection] > directionCounts[b[0] as MovementDirection] ? a : b, ['center', 0])[0] as MovementDirection;
-    
+
+    // 各方向のカウントを比較して最も多い方向を見つける
+    const dominantDirection = this.findDominantDirection(directionCounts);
+
     // 安定性を計算（0-1の範囲）
     const maxCount = Math.max(...Object.values(directionCounts));
     const stability = recentMovements.length > 0 ? maxCount / recentMovements.length : 0;
-    
+
     return {
       bufferSize: this.movementBuffer.length,
       dominantDirection,
       stability
     };
+  }
+
+  /**
+   * 方向カウントから最も多い方向を見つける
+   */
+  private findDominantDirection(directionCounts: Record<MovementDirection, number>): MovementDirection {
+    const entries = Object.entries(directionCounts);
+
+    if (entries.length === 0) {
+      return 'center';
+    }
+
+    // 最も多い方向を見つける
+    let maxDirection: MovementDirection = 'center';
+    let maxCount = 0;
+
+    for (const [direction, count] of entries) {
+      if (count > maxCount) {
+        maxCount = count;
+        maxDirection = direction as MovementDirection;
+      }
+    }
+
+    return maxDirection;
   }
 }
