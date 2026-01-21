@@ -76,10 +76,9 @@ export class OperationManager {
    * 既存のwindow.rotate関数の代替
    * @param emotion 検出された表情
    * @param confidence 表情の信頼度
-   * @param direction 回転方向（デフォルト: 'right'）
    * @returns 回転が実行されたかどうか
    */
-  public handleEmotionRotation(emotion: EmotionType, confidence: number, _direction: 'right' | 'left' = 'right'): boolean {
+  public handleEmotionRotation(emotion: EmotionType, confidence: number): boolean {
     if (!this.config.enableSmartControl) {
       // スマート制御が無効の場合は従来通り実行
       if (emotion === '😲' && this.lastRotationCallback) {
@@ -286,14 +285,19 @@ export class OperationManager {
 
   /**
    * ゲーム終了時の処理
-   * @param gameScore ゲームスコア
-   * @param playDuration プレイ時間（ミリ秒）
+   * @param gameScore ゲームスコア（将来的な分析のための予約パラメータ）
+   * @param playDuration プレイ時間（将来的な分析のための予約パラメータ）
    */
-  public onGameEnd(_gameScore: number, _playDuration: number): void {
+  public onGameEnd(gameScore: number, playDuration: number): void {
     if (this.config.enablePersonalAdaptation && this.config.playerId) {
       // 操作履歴を取得して学習データに追加
       const operationHistory = this.smartControl.getOperationHistory();
       this.adaptationSystem.learnPlayerPattern(this.config.playerId, operationHistory);
+
+      // 将来的にはスコアやプレイ時間も分析に使用予定
+      // TODO: スコアとプレイ時間を基にした適応アルゴリズムの実装
+      void gameScore; // 現在未使用
+      void playDuration; // 現在未使用
     }
   }
 

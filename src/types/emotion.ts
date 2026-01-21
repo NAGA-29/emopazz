@@ -61,9 +61,11 @@ export interface EmotionThresholds {
   minDetectionScore: number;
 }
 
-export interface SensitivitySettings {
-  [key: string]: number; // EmotionType -> sensitivity level (1-5)
-}
+/**
+ * 感度設定の型定義
+ * 各感情タイプに対して1-5の感度レベルを設定
+ */
+export type SensitivitySettings = Record<EmotionType, number>;
 
 export interface EmotionDetectionConfig {
   sensitivity: Record<EmotionType, number>;
