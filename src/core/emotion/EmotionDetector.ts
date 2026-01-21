@@ -22,6 +22,7 @@ export class EmotionDetector {
     '😡': 3, // 怒り
     '😢': 3, // 悲しみ
     '😲': 3, // 驚き
+    '❓': 3, // ?ブロック
   };
 
   // 感度によるスコア倍率調整テーブル
@@ -102,7 +103,7 @@ export class EmotionDetector {
             level >= 1 &&
             level <= 5
           ) {
-            this._sensitivitySettings[emotion] = level;
+            this._sensitivitySettings[emotion as EmotionType] = level;
           }
         }
       } catch (e) {
@@ -345,9 +346,10 @@ export class EmotionDetector {
 
     // 感度設定に基づいてスコアを調整
     for (const [emotion, score] of Object.entries(emotionScores)) {
-      const multiplier =
-        this.sensitivityMultipliers[this._sensitivitySettings[emotion] || 3] || 1.0;
-      emotionScores[emotion as EmotionType] = score * multiplier;
+      const emotionType = emotion as EmotionType;
+      const sensitivity = this._sensitivitySettings[emotionType] ?? 3;
+      const multiplier = this.sensitivityMultipliers[sensitivity] ?? 1.0;
+      emotionScores[emotionType] = score * multiplier;
     }
 
     return emotionScores;
